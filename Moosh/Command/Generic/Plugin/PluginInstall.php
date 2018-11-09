@@ -21,6 +21,7 @@ class PluginInstall extends MooshCommand
 
         $this->addArgument('plugin_name');
         $this->addArgument('plugin_version');
+        $this->addArgument('git_url');
 
         $this->addOption('f|force', 'Force installation even if current Moodle version is unsupported.');
         $this->addOption('d|delete', 'If it already exists, automatically delete plugin before installing.');
@@ -50,29 +51,31 @@ class PluginInstall extends MooshCommand
 
         $pluginname     = $this->arguments[0];
         $pluginversion  = $this->arguments[1];
-
-        $downloadurl    = $this->get_plugin_url($pluginname, $pluginversion);
+        $giturl         = $this->arguments[2];
 
         $split          = explode('_', $pluginname, 2);
         $type           = $split[0];
         $component      = $split[1];
-        $tempdir        = home_dir() . '/.moosh/moodleplugins/';
-        $downloadedfile = $tempdir . $component . ".zip";
 
-        if (!file_exists($tempdir)) {
-            mkdir($tempdir);
-        }
+        if ($giturl == 'no') {
+            $downloadurl = $this->get_plugin_url($pluginname, $pluginversion);
+            $tempdir = home_dir() . '/.moosh/moodleplugins/';
+            $downloadedfile = $tempdir . $component . ".zip";
 
-        if (!fopen($downloadedfile, 'w')) {
-            echo "Failed to save plugin - check permissions on $tempdir.\n";
-            return;
-        }
+            if (!file_exists($tempdir)) {
+                mkdir($tempdir);
+            }
 
-        try {
-            file_put_contents($downloadedfile, file_get_contents($downloadurl));
-        }
-        catch (Exception $e) {
-            die("Failed to download plugin from $downloadurl. " . $e . "\n");
+            if (!fopen($downloadedfile, 'w')) {
+                echo "Failed to save plugin - check permissions on $tempdir.\n";
+                return;
+            }
+
+            try {
+                file_put_contents($downloadedfile, file_get_contents($downloadurl));
+            } catch (Exception $e) {
+                die("Failed to download plugin from $downloadurl. " . $e . "\n");
+            }
         }
 
         $installpath = $this->get_install_path($type);
@@ -87,8 +90,13 @@ class PluginInstall extends MooshCommand
             }
         }
 
-        run_external_command("unzip $downloadedfile -d $installpath");
-        run_external_command("rm $downloadedfile");
+        if ($giturl == 'no') {
+            run_external_command("unzip $downloadedfile -d $installpath");
+            run_external_command("rm $downloadedfile");
+        } else {
+            run_external_command("git clone --single-branch -b $pluginversion $giturl $targetpath");
+            run_external_command("rm -rf $targetpath/.git");
+        }
 
         echo "Installing\n";
         echo "\tname:    $pluginname\n";
